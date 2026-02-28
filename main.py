@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from data_input import router as data_input_router
+from scripts.rag import router as rag_router
+from whatsapp_webhook import router as whatsapp_router
 from ivr import router as ivr_router
 
 app = FastAPI()
@@ -14,6 +16,8 @@ app.add_middleware(
 )
 
 app.include_router(data_input_router)
+app.include_router(rag_router)
+app.include_router(whatsapp_router)
 app.include_router(ivr_router)
 
 @app.get("/")
