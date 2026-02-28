@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, ArrowLeft, Globe, X } from 'lucide-react'
+import { Send, ArrowLeft, Globe, X, Mic, Square } from 'lucide-react'
 
 type Language = 'en' | 'hi' | 'mr' | 'ta' | 'te' | 'pa' | 'haryanvi'
 
@@ -113,7 +113,10 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
   useEffect(() => {
     // Add greeting message
@@ -161,6 +164,77 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
       setMessages((prev) => [...prev, botResponse])
       setIsLoading(false)
     }, 800)
+  }
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+
+      const options = { mimeType: 'audio/webm' };
+      const mediaRecorder = new MediaRecorder(stream, options)
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data)
+        }
+      }
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+
+        // Stop all tracks to release microphone
+        stream.getTracks().forEach((track) => track.stop())
+
+        setIsLoading(true)
+        try {
+          const formData = new FormData()
+          formData.append('audio_file', audioBlob, 'recording.webm')
+          formData.append('language', language)
+
+          const response = await fetch('http://127.0.0.1:8000/stt', {
+            method: 'POST',
+            body: formData,
+          })
+
+          if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`)
+          }
+
+          const data = await response.json()
+          if (data.text) {
+            setInput(data.text)
+          }
+        } catch (error) {
+          console.error("Failed to transcribe audio:", error)
+          // Add a temporary bot error message or toast here if desired
+        } finally {
+          setIsLoading(false)
+        }
+      }
+
+      mediaRecorder.start()
+      setIsRecording(true)
+    } catch (err) {
+      console.error("Microphone access denied or not supported:", err)
+      alert("Microphone access is required to use voice input.")
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
+      setIsRecording(false)
+    }
+  }
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      stopRecording()
+    } else {
+      startRecording()
+    }
   }
 
   return (
@@ -277,6 +351,20 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
               className="flex-1 px-4 py-3 bg-secondary border border-border rounded-full focus:outline-none focus:ring-2 focus:ring-primary text-foreground placeholder:text-muted-foreground"
               disabled={isLoading}
             />
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={toggleRecording}
+              className={`p-3 rounded-full transition-all duration-200 flex items-center justify-center border flex-shrink-0 ${isRecording
+                ? 'bg-red-500 text-white border-red-600 animate-pulse'
+                : 'bg-secondary text-primary hover:bg-secondary/80 border-border'
+                }`}
+              title={isRecording ? "Stop Recording" : "Voice Input"}
+              disabled={isLoading && !isRecording}
+            >
+              {isRecording ? <Square size={20} fill="currentColor" /> : <Mic size={20} />}
+            </motion.button>
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}

@@ -18,6 +18,7 @@ class ChatRequest(BaseModel):
     current_state: str = "start"
     user_answer: str = ""
     language: str = "english"
+    answers: dict = {}
 
 def llm_call(prompt: str):
     print("llm call")
@@ -37,6 +38,10 @@ def chatbot(request: ChatRequest):
     After every question, the LLM is called with the question, the answer,
     and it determines the next question to ask based on 'next' mappings.
     """
+    # Eagerly store the incoming answer for the CURRENT state before resolving the NEXT state
+    if request.user_answer and request.current_state:
+        request.answers[request.current_state] = request.user_answer
+
     # Base case: Starting the flow
     if request.current_state == "start" or not request.current_state:
         next_state_key = flow.get("start", "state")
@@ -47,7 +52,7 @@ def chatbot(request: ChatRequest):
         if request.language.lower() != "english":
             prompt = f"Translate the following question to {request.language}:\n\n{question_text}"
             response = llm_call(prompt)
-            question_text = response.text.strip()
+            question_text = response.strip()
             
         return {"next_state": next_state_key, "question": question_text}
 
@@ -55,6 +60,8 @@ def chatbot(request: ChatRequest):
     current_state_data = flow["questions"].get(request.current_state)
     if not current_state_data:
         return {"error": "Invalid state provided"}
+
+    # Fetch current question logic
 
     next_mapping = current_state_data.get("next")
     
@@ -96,15 +103,32 @@ def chatbot(request: ChatRequest):
             next_state_key = list(next_mapping.values())[0]
             
     if next_state_key == "end":
-        end_text = "Thank you! We have collected all needed information."
+        end_text = "Thank you! We have collected all needed information. Analyzing your profile..."
+        
+        # Fire off to the RAG system
+        from scripts.rag import rag
+        rag_query_str = json.dumps(request.answers)
+        try:
+            rag_output = rag(rag_query_str, request.language)
+            rag_json_str = rag_output.get("response", "{}")
+        except Exception as e:
+            print("RAG query failed:", e)
+            rag_json_str = "{}"
+            
         if request.language.lower() != "english":
             try:
                 prompt = f"Translate the following completion text to {request.language}:\n\n{end_text}"
                 response = llm_call(prompt)
-                end_text = response.text.strip()
+                end_text = response.strip()
             except Exception:
                 pass
-        return {"next_state": "end", "question": end_text}
+                
+        return {
+            "next_state": "end", 
+            "question": end_text,
+            "answers": request.answers,
+            "rag_response": rag_json_str
+        }
         
     next_state_data = flow["questions"].get(next_state_key)
     if not next_state_data:
@@ -117,11 +141,12 @@ def chatbot(request: ChatRequest):
         try:
             prompt = f"Translate the following question to {request.language}:\n\n{question_text}"
             response = llm_call(prompt)
-            question_text = response.text.strip()
+            question_text = response.strip()
         except Exception:
             pass
             
     return {
         "next_state": next_state_key,
-        "question": question_text
+        "question": question_text,
+        "answers": request.answers
     }

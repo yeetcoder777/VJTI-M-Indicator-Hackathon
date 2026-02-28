@@ -1,166 +1,320 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>M-Indicator Hackathon Chatbot</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background-color: #f0f2f5; color: #333;}
-        .chatbot-container { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        h2 { text-align: center; color: #1a73e8; margin-top: 0; }
-        .header-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;}
-        select { padding: 8px; border-radius: 6px; border: 1px solid #ddd; outline: none; }
-        #chat-window { border: 1px solid #eaeaea; border-radius: 8px; height: 450px; overflow-y: auto; padding: 15px; margin-bottom: 20px; background: #fafafa; display: flex; flex-direction: column;}
-        .message { margin-bottom: 12px; padding: 12px 16px; border-radius: 18px; max-width: 75%; line-height: 1.4; font-size: 0.95em; word-wrap: break-word;}
-        .bot-message { background: #e3f2fd; color: #0d47a1; align-self: flex-start; border-bottom-left-radius: 4px; }
-        .user-message { background: #1a73e8; color: white; align-self: flex-end; margin-left: auto; border-bottom-right-radius: 4px; }
-        .input-area { display: flex; gap: 10px; }
-        input[type="text"] { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 20px; outline: none; transition: border-color 0.2s;}
-        input[type="text"]:focus { border-color: #1a73e8; }
-        button { padding: 10px 20px; background: #1a73e8; color: white; border: none; border-radius: 20px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
-        button:hover { background: #1557b0; }
-        button:disabled { background: #a0c3ff; cursor: not-allowed; }
-        .spinner { font-style: italic; color: #888; }
-        
-        /* Custom scrollbar for chat window */
-        #chat-window::-webkit-scrollbar { width: 6px; }
-        #chat-window::-webkit-scrollbar-track { background: transparent; }
-        #chat-window::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
-        #chat-window::-webkit-scrollbar-thumb:hover { background: #aaa; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>M-Indicator Hackathon Chatbot</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
+      background-color: #f0f2f5;
+      color: #333;
+    }
+
+    .chatbot-container {
+      background: #fff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    h2 {
+      text-align: center;
+      color: #1a73e8;
+      margin-top: 0;
+    }
+
+    .header-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    select {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      outline: none;
+    }
+
+    #chat-window {
+      border: 1px solid #eaeaea;
+      border-radius: 8px;
+      height: 450px;
+      overflow-y: auto;
+      padding: 15px;
+      margin-bottom: 20px;
+      background: #fafafa;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message {
+      margin-bottom: 12px;
+      padding: 12px 16px;
+      border-radius: 18px;
+      max-width: 75%;
+      line-height: 1.4;
+      font-size: 0.95em;
+      word-wrap: break-word;
+    }
+
+    .bot-message {
+      background: #e3f2fd;
+      color: #0d47a1;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+
+    .user-message {
+      background: #1a73e8;
+      color: white;
+      align-self: flex-end;
+      margin-left: auto;
+      border-bottom-right-radius: 4px;
+    }
+
+    .input-area {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: #1a73e8;
+    }
+
+    button {
+      padding: 10px 20px;
+      background: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    button:hover {
+      background: #1557b0;
+    }
+
+    button:disabled {
+      background: #a0c3ff;
+      cursor: not-allowed;
+    }
+
+    .spinner {
+      font-style: italic;
+      color: #888;
+    }
+
+    /* Custom scrollbar for chat window */
+    #chat-window::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #chat-window::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #chat-window::-webkit-scrollbar-thumb {
+      background: #ccc;
+      border-radius: 3px;
+    }
+
+    #chat-window::-webkit-scrollbar-thumb:hover {
+      background: #aaa;
+    }
+  </style>
 </head>
+
 <body>
-    <div class="chatbot-container">
-        <h2>Farmer Assistant Chatbot</h2>
-        <div class="header-controls">
-            <span style="font-size: 0.9em; color: #666;">Ask anything about farming schemes!</span>
-            <select id="language" onchange="resetChat()">
-                <option value="english">English</option>
-                <option value="hindi">Hindi</option>
-                <option value="marathi">Marathi</option>
-                <option value="tamil">Tamil</option>
-                <option value="telugu">Telugu</option>
-            </select>
-        </div>
-        <div id="chat-window"></div>
-        <div class="input-area">
-            <input type="text" id="user-input" placeholder="Type your answer here..." onkeypress="handleKeyPress(event)" />
-            <button id="send-btn" onclick="sendMessage()">Send</button>
-        </div>
+  <div class="chatbot-container">
+    <h2>Farmer Assistant Chatbot</h2>
+    <div class="header-controls">
+      <span style="font-size: 0.9em; color: #666;">Ask anything about farming schemes!</span>
+      <select id="language" onchange="resetChat()">
+        <option value="english">English</option>
+        <option value="hindi">Hindi</option>
+        <option value="marathi">Marathi</option>
+        <option value="tamil">Tamil</option>
+        <option value="telugu">Telugu</option>
+      </select>
     </div>
+    <div id="chat-window"></div>
+    <div class="input-area">
+      <input type="text" id="user-input" placeholder="Type your answer here..." onkeypress="handleKeyPress(event)" />
+      <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
 
-    <script>
-        let currentState = "start";
-        const apiUrl = "http://127.0.0.1:8000/chatbot";
+  <script>
+    let currentState = "start";
+    const apiUrl = "http://127.0.0.1:8000/chatbot";
 
-        async function initChat() {
-            setLoading(true);
+    async function initChat() {
+      setLoading(true);
+      try {
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            current_state: "start",
+            user_answer: "",
+            language: document.getElementById("language").value
+          })
+        });
+        const data = await response.json();
+        removeSpinner();
+        if (data.error) {
+          appendMessage("bot", "Error: " + data.error);
+        } else {
+          currentState = data.next_state;
+          appendMessage("bot", data.question);
+          if (data.next_state === "end" && data.rag_response) {
             try {
-                const response = await fetch(apiUrl, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        current_state: "start",
-                        user_answer: "",
-                        language: document.getElementById("language").value
-                    })
+              let cleanJson = data.rag_response.replace(/```json/g, '').replace(/```/g, '').trim();
+              const ragData = JSON.parse(cleanJson);
+              let schemesHtml = "";
+              if (ragData.eligible_schemes && ragData.eligible_schemes.length > 0) {
+                schemesHtml += "<br><br><b>✅ Eligible Schemes:</b><br>";
+                ragData.eligible_schemes.forEach(s => {
+                  schemesHtml += `🟢 <b>${s.scheme}</b><br><i>${s.reason}</i><br>`;
+                  if (s.key_features) schemesHtml += `➔ <b>Key Features:</b> ${s.key_features}<br>`;
+                  if (s.documents) schemesHtml += `➔ <b>Documents Required:</b> ${s.documents}<br><br>`;
                 });
-                const data = await response.json();
-                removeSpinner();
-                if (data.error) {
-                    appendMessage("bot", "Error: " + data.error);
-                } else {
-                    currentState = data.next_state;
-                    appendMessage("bot", data.question);
-                }
-            } catch (err) {
-                removeSpinner();
-                appendMessage("bot", "Error: Cannot connect to the local server. Make sure FastAPI is running on port 8000.");
-            } finally {
-                setLoading(false);
+              } else {
+                schemesHtml += "<br><br><i>Based on your answers, we couldn't find specific schemes, or further verification is required.</i>";
+              }
+              appendMessage("bot", schemesHtml);
+            } catch (e) {
+              console.error("Failed to parse RAG JSON from backend:", e);
             }
+          }
         }
+      } catch (err) {
+        removeSpinner();
+        appendMessage("bot", "Error: Cannot connect to the local server. Make sure FastAPI is running on port 8000.");
+      } finally {
+        setLoading(false);
+      }
+    }
 
-        async function sendMessage() {
-            const inputField = document.getElementById("user-input");
-            const userText = inputField.value.trim();
-            if (!userText || currentState === "end") return;
-            
-            appendMessage("user", userText);
-            inputField.value = "";
-            setLoading(true);
+    async function sendMessage() {
+      const inputField = document.getElementById("user-input");
+      const userText = inputField.value.trim();
+      if (!userText || currentState === "end") return;
 
+      appendMessage("user", userText);
+      inputField.value = "";
+      setLoading(true);
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            current_state: currentState,
+            user_answer: userText,
+            language: document.getElementById("language").value
+          })
+        });
+        const data = await response.json();
+        removeSpinner();
+        if (data.error) {
+          appendMessage("bot", "Error: " + data.error);
+        } else {
+          currentState = data.next_state;
+          appendMessage("bot", data.question);
+          if (data.next_state === "end" && data.rag_response) {
             try {
-                const response = await fetch(apiUrl, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        current_state: currentState,
-                        user_answer: userText,
-                        language: document.getElementById("language").value
-                    })
+              let cleanJson = data.rag_response.replace(/```json/g, '').replace(/```/g, '').trim();
+              const ragData = JSON.parse(cleanJson);
+              let schemesHtml = "";
+              if (ragData.eligible_schemes && ragData.eligible_schemes.length > 0) {
+                schemesHtml += "<br><br><b>✅ Eligible Schemes:</b><br>";
+                ragData.eligible_schemes.forEach(s => {
+                  schemesHtml += `🟢 <b>${s.scheme}</b><br><i>${s.reason}</i><br>`;
+                  if (s.key_features) schemesHtml += `➔ <b>Key Features:</b> ${s.key_features}<br>`;
+                  if (s.documents) schemesHtml += `➔ <b>Documents Required:</b> ${s.documents}<br><br>`;
                 });
-                const data = await response.json();
-                removeSpinner();
-                if (data.error) {
-                    appendMessage("bot", "Error: " + data.error);
-                } else {
-                    currentState = data.next_state;
-                    appendMessage("bot", data.question);
-                }
-            } catch (err) {
-                removeSpinner();
-                appendMessage("bot", "Error sending message to server.");
-            } finally {
-                setLoading(false);
+              } else {
+                schemesHtml += "<br><br><i>Based on your answers, we couldn't find specific schemes, or further verification is required.</i>";
+              }
+              appendMessage("bot", schemesHtml);
+            } catch (e) {
+              console.error("Failed to parse RAG JSON from backend:", e);
             }
+          }
         }
+      } catch (err) {
+        removeSpinner();
+        appendMessage("bot", "Error sending message to server.");
+      } finally {
+        setLoading(false);
+      }
+    }
 
-        function appendMessage(sender, text, isSpinner = false) {
-            const chatWindow = document.getElementById("chat-window");
-            const msgDiv = document.createElement("div");
-            msgDiv.className = `message ${sender}-message`;
-            if (isSpinner) {
-                msgDiv.id = "spinner";
-                msgDiv.innerHTML = '<span class="spinner">Typing...</span>';
-            } else {
-                msgDiv.innerText = text;
-            }
-            chatWindow.appendChild(msgDiv);
-            chatWindow.scrollTop = chatWindow.scrollHeight;
-        }
+    function appendMessage(sender, text, isSpinner = false) {
+      const chatWindow = document.getElementById("chat-window");
+      const msgDiv = document.createElement("div");
+      msgDiv.className = `message ${sender}-message`;
+      if (isSpinner) {
+        msgDiv.id = "spinner";
+        msgDiv.innerHTML = '<span class="spinner">Typing...</span>';
+      } else {
+        msgDiv.innerHTML = text;
+      }
+      chatWindow.appendChild(msgDiv);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+    }
 
-        function removeSpinner() {
-            const spinner = document.getElementById("spinner");
-            if (spinner) spinner.remove();
-        }
+    function removeSpinner() {
+      const spinner = document.getElementById("spinner");
+      if (spinner) spinner.remove();
+    }
 
-        function handleKeyPress(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        }
-        
-        function resetChat() {
-            document.getElementById("chat-window").innerHTML = '';
-            currentState = 'start';
-            initChat();
-        }
+    function handleKeyPress(e) {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
+    }
 
-        function setLoading(isLoading) {
-            const inputField = document.getElementById("user-input");
-            const sendBtn = document.getElementById("send-btn");
-            inputField.disabled = isLoading;
-            sendBtn.disabled = isLoading;
-            if (isLoading) {
-                appendMessage("bot", "", true);
-            }
-            if(!isLoading) {
-                 inputField.focus();
-            }
-        }
+    function resetChat() {
+      document.getElementById("chat-window").innerHTML = '';
+      currentState = 'start';
+      initChat();
+    }
 
-        window.onload = initChat;
-    </script>
+    function setLoading(isLoading) {
+      const inputField = document.getElementById("user-input");
+      const sendBtn = document.getElementById("send-btn");
+      inputField.disabled = isLoading;
+      sendBtn.disabled = isLoading;
+      if (isLoading) {
+        appendMessage("bot", "", true);
+      }
+      if (!isLoading) {
+        inputField.focus();
+      }
+    }
+
+    window.onload = initChat;
+  </script>
 </body>
+
 </html>

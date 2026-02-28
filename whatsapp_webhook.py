@@ -1,9 +1,12 @@
 import json
+import os
+import httpx
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import Response
 from twilio.twiml.messaging_response import MessagingResponse
 
 from data_input import chatbot, ChatRequest
+from stt import stt
 
 router = APIRouter()
 
@@ -14,13 +17,38 @@ sessions = {}
 @router.post("/whatsapp")
 async def whatsapp_webhook(
   request: Request,
-  Body: str = Form(...),
+  Body: str = Form(""),
   From: str = Form(...),
   MediaUrl0: str | None = Form(None),
   MediaContentType0: str | None = Form(None),
 ):
     print(f"Received WhatsApp from {From}: {Body}")
     body_text = Body.strip()
+    
+    current_session = sessions.get(From, {})
+    session_lang = current_session.get("language", "english")
+
+    if MediaUrl0 and MediaContentType0 and MediaContentType0.startswith("audio/"):
+        print(f"Downloading Audio Media from: {MediaUrl0}")
+        twilio_sid = os.getenv("TWILIO_ACCOUNT_SID")
+        twilio_auth = os.getenv("TWILIO_AUTH_TOKEN")
+        
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            media_resp = await client.get(MediaUrl0, auth=(twilio_sid, twilio_auth))
+            if media_resp.status_code == 200:
+                print("Audio downloaded, transcribing via Whisper...")
+                try:
+                    # Pass the audio bytes and the user's current session language
+                    transcription = stt(media_resp.content, session_lang)
+                    body_text = transcription
+                    print(f"Transcribed Text: {body_text}")
+                except Exception as e:
+                    print(f"STT Transcription failed: {e}")
+                    twiml_resp = MessagingResponse()
+                    twiml_resp.message("Sorry, I couldn't understand that audio message. Please try typing instead. / क्षमा करें, मैं उस ऑडियो संदेश को समझ नहीं पाया। कृपया इसके बजाय टाइप करने का प्रयास करें।")
+                    return Response(content=str(twiml_resp), media_type="application/xml")
+            else:
+                print(f"Failed to download Twilio audio media. HTTP Status: {media_resp.status_code}, Body: {media_resp.text}")
     
     LANGUAGE_OPTIONS = {
         "0": "english",
@@ -54,6 +82,12 @@ async def whatsapp_webhook(
         
     session = sessions[From]
     
+    # Track their input preference
+    if MediaUrl0 and MediaContentType0 and MediaContentType0.startswith("audio/"):
+        session["wants_audio"] = True
+    else:
+        session["wants_audio"] = False
+    
     # Language selection handling
     if session["current_state"] == "language_selection":
         selected_num = body_text.strip()
@@ -71,7 +105,7 @@ async def whatsapp_webhook(
         current_state=session["current_state"],
         user_answer=body_text,
         language=session["language"],
-        answers=session["answers"]
+        answers=session.get("answers", {})
     )
     
     # Trigger the existing LLM flow logic
@@ -86,14 +120,23 @@ async def whatsapp_webhook(
         
     # Update saved state
     session["current_state"] = res["next_state"]
-    session["answers"] = res["answers"]
+    session["answers"] = res.get("answers", {})
     
     reply_text = res["question"]
     
     # Check if we reached the end
     if res["next_state"] == "end" and "rag_response" in res:
         try:
-            rag_data = json.loads(res["rag_response"])
+            clean_json = res["rag_response"].strip()
+            if clean_json.startswith("```json"):
+                clean_json = clean_json[7:]
+            elif clean_json.startswith("```"):
+                clean_json = clean_json[3:]
+            if clean_json.endswith("```"):
+                clean_json = clean_json[:-3]
+            clean_json = clean_json.strip()
+            
+            rag_data = json.loads(clean_json)
             labels = res.get("labels", {"key_features": "Key Features", "documents": "Documents Required"})
             
             schemes_text = ""
@@ -118,5 +161,45 @@ async def whatsapp_webhook(
             reply_text += "\n\n(Error loading full scheme details)"
             
     # Send the final formatted message back to WhatsApp
-    twiml_resp.message(reply_text)
+    msg = twiml_resp.message(reply_text)
+    
+    if session.get("wants_audio"):
+        import re
+        import textwrap
+        try:
+            from tts import generate_tts
+            
+            # If we are at the "end" state, we want to read ONLY the scheme names (skipping the long documents array).
+            # Otherwise, for normal conversation flow, we read `reply_text` directly (without markdown).
+            if res.get("next_state") == "end" and "rag_data" in locals() and rag_data.get("eligible_schemes"):
+                intro_map = {
+                    "english": "Here are the schemes you are eligible for: ",
+                    "hindi": "यहाँ वे योजनाएँ हैं जिनके लिए आप पात्र हैं: ",
+                    "marathi": "येथे त्या योजना आहेत ज्यासाठी आपण पात्र आहात: ",
+                    "tamil": "நீங்கள் தகுதியுடைய திட்டங்கள் இவை: ",
+                    "telugu": "మీరు అర్హత పొందిన పథకాలు ఇవి: "
+                }
+                lang = session.get("language", "english")
+                tts_text = intro_map.get(lang, intro_map["english"])
+                for s in rag_data["eligible_schemes"]:
+                    tts_text += f"{s['scheme']}. "
+            else:
+                # Normal intermediate questions or fallback (strip markdown emojis)
+                tts_text = re.sub(r'[*_]', '', reply_text)
+                tts_text = re.sub(r'[🟢➔✅]', '', tts_text)
+                
+            tts_text = tts_text.strip()
+            
+            # Truncate text prior to TTS synthesis to prevent hitting Free Tier API length limits.
+            if len(tts_text) > 800:
+                tts_text = tts_text[:800] + "... Please see the text message below."
+                
+            filename = generate_tts(tts_text.strip(), session.get("language", "english"))
+            host = request.headers.get("host")
+            scheme = request.headers.get("x-forwarded-proto", "https")
+            audio_url = f"{scheme}://{host}/static/{filename}"
+            msg.media(audio_url)
+        except Exception as e:
+            print(f"TTS generation failed: {e}")
+            
     return Response(content=str(twiml_resp), media_type="application/xml")
