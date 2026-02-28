@@ -11,11 +11,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ---------- CONFIG ----------
-PDF_DIR = "./data_sources"
-CHROMA_DB_PATH = "./chroma_db"
+PDF_DIR = r"C:\M_Indicator_Hackathon\VJTI-M-Indicator-Hackathon\data_sources"
+CHROMA_DB_PATH = r"C:\M_Indicator_Hackathon\VJTI-M-Indicator-Hackathon\scripts\chroma_db"
 COLLECTION_NAME = "farmer_schemes"
-CHUNK_SIZE = 500
-CHUNK_OVERLAP = 120
+CHUNK_SIZE = 1500
+CHUNK_OVERLAP = 250
 MIN_CHARS_PER_PAGE = 50
 
 
@@ -32,15 +32,23 @@ def ocr_page(pdf_path: str, page_number: int) -> str:
     doc = fitz.open(pdf_path)
     page = doc[page_number]
 
-    # Render page to PNG at 300 DPI
-    pix = page.get_pixmap(dpi=300)
+    # Render page to PNG at 150 DPI to reduce payload size
+    pix = page.get_pixmap(dpi=150)
+    
+    # If the image is still massive, resize it to a max dimension
+    max_dim = 1024
+    if pix.width > max_dim or pix.height > max_dim:
+        scale = max_dim / max(pix.width, pix.height)
+        matrix = fitz.Matrix(scale, scale)
+        pix = page.get_pixmap(matrix=matrix, dpi=150)
+
     image_bytes = pix.tobytes("png")
     image_base64 = base64.b64encode(image_bytes).decode()
     doc.close()
 
     # Send to Groq Vision
     response = groq_client.chat.completions.create(
-        model="llama-4-scout-17b-16e-instruct",
+        model="meta-llama/llama-4-scout-17b-16e-instruct",
         messages=[
             {
                 "role": "user",
@@ -96,20 +104,22 @@ def extract_text_from_pdf(pdf_path: str) -> list[dict]:
         else:
             # Scanned page — run OCR via Groq
             print(f"  Page {i+1}: scanned, running Groq OCR...")
-            ocr_text = ocr_page(pdf_path, page_number=i)
-
-            if ocr_text and ocr_text.strip():
-                results.append({
-                    "page_content": ocr_text,
-                    "metadata": {
-                        "source": pdf_path,
-                        "scheme_name": scheme_name,
-                        "page": i + 1,
-                        "extraction_method": "ocr_groq",
-                    },
-                })
-            else:
-                print(f"  Page {i+1}: OCR returned empty, skipping")
+            try:
+                ocr_text = ocr_page(pdf_path, page_number=i)
+                if ocr_text and ocr_text.strip():
+                    results.append({
+                        "page_content": ocr_text,
+                        "metadata": {
+                            "source": pdf_path,
+                            "scheme_name": scheme_name,
+                            "page": i + 1,
+                            "extraction_method": "ocr_groq",
+                        },
+                    })
+                else:
+                    print(f"  Page {i+1}: OCR returned empty, skipping")
+            except Exception as e:
+                print(f"  Page {i+1}: Groq API error ({e}), skipping to save progress")
 
     return results
 
@@ -173,14 +183,14 @@ def main():
     print("Setting up ChromaDB...")
     client = chromadb.PersistentClient(path=CHROMA_DB_PATH)
 
-    # Delete old collection if re-ingesting
-    try:
-        client.delete_collection(COLLECTION_NAME)
-        print(f"Deleted existing collection '{COLLECTION_NAME}'")
-    except ValueError:
-        pass
+    # # Delete old collection if re-ingesting
+    # try:
+    #     client.delete_collection(COLLECTION_NAME)
+    #     print(f"Deleted existing collection '{COLLECTION_NAME}'")
+    # except ValueError:
+    #     pass
 
-    collection = client.create_collection(name=COLLECTION_NAME)
+    collection = client.get_or_create_collection(name=COLLECTION_NAME)
 
     # 3. Process all PDFs
     all_documents = []
