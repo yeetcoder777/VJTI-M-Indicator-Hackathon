@@ -1,0 +1,78 @@
+{
+  "start": "state",
+  "questions": {
+    "state": {
+      "key": "state",
+      "text": "Which state do you farm in? Please say your state name after the beep.",
+      "input_type": "voice",
+      "next": "owns_land"
+    },
+    "owns_land": {
+      "key": "owns_land",
+      "text": "Do you own the land you farm on? Press 1 for Yes, Press 2 for No.",
+      "input_type": "dtmf",
+      "dtmf_options": {
+        "1": "yes",
+        "2": "no"
+      },
+      "next": {
+        "yes": "land_size",
+        "no": "activity"
+      }
+    },
+    "land_size": {
+      "key": "land_size_acres",
+      "text": "How much land do you farm in acres? Please say the number after the beep.",
+      "input_type": "voice",
+      "next": "farming_type"
+    },
+    "farming_type": {
+      "key": "farming_type",
+      "text": "What do you grow? Please say your crop or activity after the beep.",
+      "input_type": "voice",
+      "classify": {
+        "crop": "crop (wheat, rice, cotton, etc.)",
+        "allied": "allied (dairy, poultry, etc.)"
+      },
+      "next": {
+        "crop": "irrigation",
+        "allied": "income"
+      }
+    },
+    "irrigation": {
+      "key": "irrigation_method",
+      "text": "How do you irrigate your crops? Press 1 for Canal, Press 2 for Borewell or Tubewell, Press 3 for Rainfed, Press 4 for Drip or Sprinkler.",
+      "input_type": "dtmf",
+      "dtmf_options": {
+        "1": "canal",
+        "2": "borewell",
+        "3": "rainfed",
+        "4": "drip or sprinkler"
+      },
+      "next": "income"
+    },
+    "activity": {
+      "key": "activity",
+      "text": "What is your primary farming activity? Please say it after the beep.",
+      "input_type": "voice",
+      "next": "income"
+    },
+    "income": {
+      "key": "annual_income",
+      "text": "What is your approximate annual income from all sources? Please say the amount after the beep.",
+      "input_type": "voice",
+      "next": "category"
+    },
+    "category": {
+      "key": "category",
+      "text": "Do you belong to any of these categories? Press 1 for SC or ST, Press 2 for Woman farmer, Press 3 for None.",
+      "input_type": "dtmf",
+      "dtmf_options": {
+        "1": "SC/ST",
+        "2": "Woman farmer",
+        "3": "None"
+      },
+      "next": "end"
+    }
+  }
+}
