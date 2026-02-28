@@ -3,7 +3,9 @@ import os
 from fastapi import APIRouter
 from pydantic import BaseModel
 from groq import Groq
+from dotenv import load_dotenv
 
+load_dotenv()
 router = APIRouter()
 
 # Load the flow from flow.json
@@ -19,9 +21,9 @@ class ChatRequest(BaseModel):
 
 def llm_call(prompt: str):
     print("llm call")
-    client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+    client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     response = client.chat.completions.create(
-        model="llama3-70b-8192",
+        model="openai/gpt-oss-120b",
         messages=[
             {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": prompt}
@@ -65,18 +67,18 @@ def chatbot(request: ChatRequest):
         classify_hint = current_state_data.get("classify", {})
         
         prompt = f"""
-        Question asked: "{current_state_data['text']}"
-        User answered: "{request.user_answer}"
+        The user was asked: "{current_state_data['text']}"
+        The user responded with: "{request.user_answer}"
         
-        Available categories: {list(next_mapping.keys())}
-        {'Hints: ' + json.dumps(classify_hint) if classify_hint else ''}
+        We need to determine the next step based on the provided mapping: {json.dumps(next_mapping)}
+        {'Use these classification hints for guidance: ' + json.dumps(classify_hint) if classify_hint else ''}
         
-        Which exact category from the available categories best matches the user's answer?
-        Respond with ONLY the exact category name.
+        Based on the user's response, which key from the mapping logic applies best?
+        Return ONLY the exact key name from the allowed keys: {list(next_mapping.keys())}.
         """
         try:
-            response_text = llm_call(prompt)
-            classified_key = response_text.strip().lower()
+            response = llm_call(prompt)
+            classified_key = response.text.strip().lower()
             
             # Clean and map the LLM response to one of our exact dictionary keys
             matched_key = None
