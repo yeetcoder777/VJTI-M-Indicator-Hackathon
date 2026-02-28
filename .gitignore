@@ -1,3 +1,35 @@
-.venv
+# Virtual Environments & Env Vars
+.venv/
+venv/
+env/
 .env
-venv
+.env.local
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# ChromaDB / Vector Store
+chroma_db/
+*.sqlite3
+
+# Node / Next.js Frontend
+node_modules/
+.next/
+out/
+build/
+.vercel
+dist/
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
