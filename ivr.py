@@ -457,6 +457,13 @@ def ivr_recommend_sync(call_sid: str):
 
     try:
         recommendation = llm_call(prompt)
+        if not recommendation:
+            recommendation = (
+                "Based on your profile, you may be eligible for PM-KISAN, PMFBY, "
+                "and Kisan Credit Card. Please visit your nearest CSC center for details."
+            )
+            print("[Recommend] LLM returned empty, using fallback")
+        print(f"[Recommend] Result: {recommendation[:200]}")
         recommendation_translated = translate(recommendation, session["language"])
     except Exception as e:
         print(f"[Recommend] Error: {e}")
@@ -476,7 +483,10 @@ def ivr_recommend_sync(call_sid: str):
             short_schemes = llm_call(sms_prompt).strip()
         except Exception:
             short_schemes = "PM-KISAN, PMFBY, KCC"
-        sms_body = f"Farmer Scheme Assistant\nRecommended: {short_schemes}\nVisit your nearest CSC center to apply."
+        # Build Google Maps link to nearest CSC using farmer's state
+        state = profile.get("state", "").replace(" ", "+")
+        csc_link = f"https://maps.google.com/maps?q=CSC+center+near+{state}" if state else "https://findmycsc.nic.in"
+        sms_body = f"Farmer Scheme Assistant\nSchemes: {short_schemes}"
         try:
             twilio_client.messages.create(
                 to=caller,
@@ -487,12 +497,31 @@ def ivr_recommend_sync(call_sid: str):
         except Exception as e:
             print(f"[SMS] Failed: {e}")
 
+        # Send WhatsApp message with full recommendation details
+        whatsapp_from = os.getenv("TWILIO_WHATSAPP_NUMBER", "")
+        if whatsapp_from:
+            wa_body = (
+                "*Farmer Scheme Assistant*\n\n"
+                f"*Your Profile:*\n{profile_text}\n\n"
+                f"*Recommended Schemes:*\n{recommendation}\n\n"
+                "_Reply to this message to ask questions about any scheme._"
+            )
+            try:
+                twilio_client.messages.create(
+                    to=f"whatsapp:{caller}",
+                    from_=f"whatsapp:{whatsapp_from}",
+                    body=wa_body,
+                )
+                print(f"[WhatsApp] Sent to {caller}")
+            except Exception as e:
+                print(f"[WhatsApp] Failed: {e}")
+
     twiml = VoiceResponse()
     say_text(twiml, recommendation_translated, session)
     say_text(
         twiml,
         translate(
-            "We have also sent these details to your phone via SMS. Thank you for calling. Goodbye!",
+            "We have also sent these details to your phone. Thank you for calling. Goodbye!",
             session["language"],
         ),
         session,
