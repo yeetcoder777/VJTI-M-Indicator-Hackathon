@@ -17,6 +17,7 @@ interface Message {
   text: React.ReactNode
   sender: 'user' | 'bot'
   timestamp: Date
+  attachment?: string
 }
 
 const greetings: Record<Language, { greeting: React.ReactNode; placeholder: string; sendButton: string }> = {
@@ -114,19 +115,55 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [imageBase64, setImageBase64] = useState<string | null>(null)
+
+  const [currentUserId] = useState(() => `next_user_${Math.random().toString(36).substr(2, 9)}`)
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const apiUrl = "http://127.0.0.1:8000/web_chat"
+
+  // Map Backend HTML to React properly
+  const createMarkup = (htmlString: string) => {
+    return { __html: htmlString };
+  };
+
+  const initChat = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: currentUserId,
+          message: "reset"
+        })
+      });
+      const data = await response.json();
+      if (!data.error) {
+        const botMsg: Message = {
+          id: Date.now().toString(),
+          text: <div dangerouslySetInnerHTML={createMarkup(data.response)} />,
+          sender: 'bot',
+          timestamp: new Date(),
+        };
+        setMessages([botMsg]);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    // Add greeting message
-    const greeting: Message = {
-      id: '0',
-      text: greetings[language].greeting,
-      sender: 'bot',
-      timestamp: new Date(),
-    }
-    setMessages([greeting])
+    initChat()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language])
 
   const scrollToBottom = () => {
@@ -137,33 +174,107 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
     scrollToBottom()
   }, [messages])
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim()) return
+  const handleSendMessage = async (e?: React.FormEvent, overrideText?: string) => {
+    if (e) e.preventDefault()
+
+    const textToSend = overrideText || input
+    if (!textToSend.trim() && !imageBase64) return
 
     // Add user message
+    let displayMsg = textToSend
+    if (selectedFile) {
+      displayMsg = `[Attached Image: ${selectedFile.name}] ${textToSend}`
+    }
+
     const userMessage: Message = {
       id: Date.now().toString(),
-      text: input,
+      text: displayMsg,
       sender: 'user',
       timestamp: new Date(),
+      attachment: imageBase64 ? 'true' : undefined
     }
 
     setMessages((prev) => [...prev, userMessage])
     setInput('')
     setIsLoading(true)
 
-    // Simulate bot response delay
-    setTimeout(() => {
-      const botResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        text: botResponses[language][Math.floor(Math.random() * botResponses[language].length)],
-        sender: 'bot',
-        timestamp: new Date(),
+    try {
+      const payload: any = {
+        user_id: currentUserId,
+        message: textToSend,
+        is_voice: isRecording || overrideText ? true : false
       }
-      setMessages((prev) => [...prev, botResponse])
+
+      if (imageBase64 && selectedFile) {
+        payload.image_base64 = imageBase64
+        payload.image_mime = selectedFile.type
+      }
+
+      // Reset file attachment UI state aggressively
+      setSelectedFile(null)
+      setImageBase64(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+
+      if (data.error) {
+        setMessages(prev => [...prev, { id: Date.now().toString(), text: `Error: ${data.error}`, sender: 'bot', timestamp: new Date() }])
+      } else {
+        let botHtml = data.response
+
+        if ((data.state === "end" || data.next_state === "end") && (data.rag_payload || data.rag_response)) {
+          try {
+            let cleanJson = data.rag_response ? data.rag_response.replace(/```json/g, '').replace(/```/g, '').trim() : null;
+            const ragData = data.rag_payload || JSON.parse(cleanJson);
+
+            if (ragData?.eligible_schemes?.length > 0) {
+              botHtml += "<br><br><b>✅ Eligible Schemes:</b><br>";
+              ragData.eligible_schemes.forEach((s: any) => {
+                botHtml += `🟢 <b>${s.scheme}</b><br><i>${s.reason}</i><br>`;
+                if (s.key_features) botHtml += `➔ <b>Key Features:</b> ${s.key_features}<br>`;
+                if (s.documents) botHtml += `➔ <b>Documents Required:</b> ${s.documents}<br><br>`;
+              });
+            } else {
+              botHtml += "<br><br><i>Based on your answers, we couldn't find specific schemes, or further verification is required.</i>";
+            }
+
+            // Localization Prompt
+            let nextPrompt = "<br><br><b>Which scheme are you interested in?</b>";
+            if (language === "hi") nextPrompt = "<br><br><b>आप किस योजना में रुचि रखते हैं?</b>";
+            if (language === "mr") nextPrompt = "<br><br><b>तुम्हाला कोणत्या योजनेत रस आहे?</b>";
+            if (language === "ta") nextPrompt = "<br><br><b>நீங்கள் எந்த திட்டத்தில் ஆர்வமாக உள்ளீர்கள்?</b>";
+            if (language === "te") nextPrompt = "<br><br><b>మీరు ఏ పథకం పట్ల ఆసక్తి చూపుతున్నారు?</b>";
+            botHtml += nextPrompt;
+
+          } catch (e) {
+            console.error("RAG JSON Parser fallback:", e)
+          }
+        }
+
+        if (data.audio_url) {
+          const audio = new Audio(data.audio_url);
+          audio.play().catch(e => console.error("Audio playback error:", e));
+        }
+
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: <div dangerouslySetInnerHTML={createMarkup(botHtml)} />,
+          sender: 'bot',
+          timestamp: new Date()
+        }])
+      }
+
+    } catch (error) {
+      console.error("Endpoint Failed:", error)
+      setMessages(prev => [...prev, { id: Date.now().toString(), text: "Network connection to Assistant Server failed.", sender: 'bot', timestamp: new Date() }])
+    } finally {
       setIsLoading(false)
-    }, 800)
+    }
   }
 
   const startRecording = async () => {
@@ -205,6 +316,8 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
           const data = await response.json()
           if (data.text) {
             setInput(data.text)
+            // Automate the submit dispatch so the user doesn't have to push physical Send after Mic Stop
+            handleSendMessage(undefined, data.text)
           }
         } catch (error) {
           console.error("Failed to transcribe audio:", error)
@@ -236,6 +349,19 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
       startRecording()
     }
   }
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setImageBase64(result.split(',')[1]);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-background">
@@ -342,7 +468,29 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
           animate={{ y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
         >
-          <div className="flex gap-3">
+          {selectedFile && (
+            <div className="text-sm text-primary font-semibold mb-2 ml-2">
+              Attached: {selectedFile.name}
+            </div>
+          )}
+          <div className="flex gap-2 items-center">
+
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+            />
+
+            <button
+              type="button"
+              className="p-3 text-gray-500 hover:text-primary transition-colors hover:bg-gray-100 rounded-full"
+              onClick={() => fileInputRef.current?.click()}
+              title="Attach Document"
+            >
+              📎
+            </button>
             <input
               type="text"
               value={input}
@@ -369,7 +517,7 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               type="submit"
-              disabled={isLoading || !input.trim()}
+              disabled={isLoading || (!input.trim() && !imageBase64)}
               className="px-6 py-3 bg-primary text-white rounded-full hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 font-medium"
             >
               <Send size={18} />

@@ -319,9 +319,10 @@ class WebChatRequest(BaseModel):
     message: str
     image_base64: Optional[str] = None
     image_mime: Optional[str] = None
+    is_voice: Optional[bool] = False
 
 @router.post("/web_chat")
-async def web_chat_endpoint(request: WebChatRequest):
+async def web_chat_endpoint(request: WebChatRequest, http_request: Request):
     user_id = request.user_id
     body_text = request.message.strip()
     
@@ -434,7 +435,28 @@ async def web_chat_endpoint(request: WebChatRequest):
         if res["next_state"] == "end":
             session["current_state"] = "language_selection" 
             
-        return {"response": res["question"].replace('\n', '<br>'), "state": session["current_state"]}
+        reply_text = res["question"].replace('\n', '<br>')
+        
+        audio_url = None
+        if request.is_voice:
+            import re
+            try:
+                from tts import generate_tts
+                tts_text = re.sub(r'[*_🟢➔✅<br>]', '', res["question"])
+                tts_text = tts_text.strip()
+                if len(tts_text) > 800:
+                    tts_text = tts_text[:800] + "... Please see the text message below."
+                filename = generate_tts(tts_text, session.get("language", "english"))
+                host = http_request.headers.get("host", "127.0.0.1:8000")
+                scheme = http_request.headers.get("x-forwarded-proto", "http")
+                audio_url = f"{scheme}://{host}/static/{filename}"
+            except Exception as e:
+                print(f"Web TTS generation failed: {e}")
+                
+        if res["next_state"] == "end":
+            session["current_state"] = "language_selection" 
+            
+        return {"response": reply_text, "state": session["current_state"], "audio_url": audio_url}
             
     else:
         req = ChatRequest(
@@ -465,8 +487,40 @@ async def web_chat_endpoint(request: WebChatRequest):
                 
                 # To prevent endless loops on the frontend, map the state specifically like Twilio did
                 session["current_state"] = "scheme_selection"
-                return {"response": reply_text, "rag_payload": rag_data, "state": "scheme_selection"}
+                return {"response": reply_text, "rag_payload": rag_data, "state": "end"}
             except Exception as e:
                 print("Web JSON Error:", e)
         
-        return {"response": reply_text, "state": session["current_state"]}
+        audio_url = None
+        if request.is_voice:
+            import re
+            try:
+                from tts import generate_tts
+                
+                if res["next_state"] == "end" and "rag_data" in locals() and rag_data.get("eligible_schemes"):
+                    intro_map = {
+                        "english": "Here are the schemes you are eligible for: ",
+                        "hindi": "यहाँ वे योजनाएँ हैं जिनके लिए आप पात्र हैं: ",
+                        "marathi": "येथे त्या योजना आहेत ज्यासाठी आपण पात्र आहात: ",
+                        "tamil": "நீங்கள் தகுதியுடைய திட்டங்கள் இவை: ",
+                        "telugu": "మీరు అర్హత పొందిన పథకాలు ఇవి: "
+                    }
+                    lang = session.get("language", "english")
+                    tts_text = intro_map.get(lang, intro_map["english"])
+                    for s in rag_data["eligible_schemes"]:
+                        tts_text += f"{s['scheme']}. "
+                else:
+                    tts_text = re.sub(r'[*_🟢➔✅<br>]', '', res["question"])
+                    
+                tts_text = tts_text.strip()
+                if len(tts_text) > 800:
+                    tts_text = tts_text[:800] + "... Please see the text message below."
+                    
+                filename = generate_tts(tts_text, session.get("language", "english"))
+                host = http_request.headers.get("host", "127.0.0.1:8000")
+                scheme = http_request.headers.get("x-forwarded-proto", "http")
+                audio_url = f"{scheme}://{host}/static/{filename}"
+            except Exception as e:
+                print(f"Web TTS generation failed: {e}")
+                
+        return {"response": reply_text, "state": session["current_state"], "audio_url": audio_url}

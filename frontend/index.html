@@ -320,38 +320,38 @@
           appendMessage("bot", "Error: " + data.error);
         } else {
           appendMessage("bot", data.response);
-          if (data.next_state === "end" && data.rag_response) {
-            try {
-              let cleanJson = data.rag_response.replace(/```json/g, '').replace(/```/g, '').trim();
-              const ragData = JSON.parse(cleanJson);
-              let schemesHtml = "";
-              if (ragData.eligible_schemes && ragData.eligible_schemes.length > 0) {
-                schemesHtml += "<br><br><b>✅ Eligible Schemes:</b><br>";
-                ragData.eligible_schemes.forEach(s => {
-                  schemesHtml += `🟢 <b>${s.scheme}</b><br><i>${s.reason}</i><br>`;
-                  if (s.key_features) schemesHtml += `➔ <b>Key Features:</b> ${s.key_features}<br>`;
-                  if (s.documents) schemesHtml += `➔ <b>Documents Required:</b> ${s.documents}<br><br>`;
-                });
-              } else {
-                schemesHtml += "<br><br><i>Based on your answers, we couldn't find specific schemes, or further verification is required.</i>";
+          if (data.state === "end" || data.next_state === "end") {
+            if (data.rag_payload || data.rag_response) {
+              try {
+                let cleanJson = data.rag_response ? data.rag_response.replace(/```json/g, '').replace(/```/g, '').trim() : null;
+                const ragData = data.rag_payload || JSON.parse(cleanJson);
+                let schemesHtml = "";
+                if (ragData.eligible_schemes && ragData.eligible_schemes.length > 0) {
+                  schemesHtml += "<br><br><b>✅ Eligible Schemes:</b><br>";
+                  ragData.eligible_schemes.forEach(s => {
+                    schemesHtml += `🟢 <b>${s.scheme}</b><br><i>${s.reason}</i><br>`;
+                    if (s.key_features) schemesHtml += `➔ <b>Key Features:</b> ${s.key_features}<br>`;
+                    if (s.documents) schemesHtml += `➔ <b>Documents Required:</b> ${s.documents}<br><br>`;
+                  });
+                } else {
+                  schemesHtml += "<br><br><i>Based on your answers, we couldn't find specific schemes, or further verification is required.</i>";
+                }
+
+                const lang = document.getElementById("language").value;
+                let nextPrompt = "<br><br><b>Which scheme are you interested in?</b>";
+                if (lang === "hindi") nextPrompt = "<br><br><b>आप किस योजना में रुचि रखते हैं?</b>";
+                if (lang === "marathi") nextPrompt = "<br><br><b>तुम्हाला कोणत्या योजनेत रस आहे?</b>";
+                if (lang === "tamil") nextPrompt = "<br><br><b>நீங்கள் எந்த திட்டத்தில் ஆர்வமாக உள்ளீர்கள்?</b>";
+                if (lang === "telugu") nextPrompt = "<br><br><b>మీరు ఏ పథకం పట్ల ఆసక్తి చూపుతున్నారు?</b>";
+
+                schemesHtml += nextPrompt;
+                appendMessage("bot", schemesHtml);
+              } catch (e) {
+                console.error("Failed to parse RAG JSON from backend:", e);
               }
-
-              const lang = document.getElementById("language").value;
-              let nextPrompt = "<br><br><b>Which scheme are you interested in?</b>";
-              if (lang === "hindi") nextPrompt = "<br><br><b>आप किस योजना में रुचि रखते हैं?</b>";
-              if (lang === "marathi") nextPrompt = "<br><br><b>तुम्हाला कोणत्या योजनेत रस आहे?</b>";
-              if (lang === "tamil") nextPrompt = "<br><br><b>நீங்கள் எந்த திட்டத்தில் ஆர்வமாக உள்ளீர்கள்?</b>";
-              if (lang === "telugu") nextPrompt = "<br><br><b>మీరు ఏ పథకం పట్ల ఆసక్తి చూపుతున్నారు?</b>";
-
-              schemesHtml += nextPrompt;
-
-              appendMessage("bot", schemesHtml);
-              // Server logic natively maps this on the Backend now
-            } catch (e) {
-              console.error("Failed to parse RAG JSON from backend:", e);
             }
-          } else if (data.next_state) {
-            currentState = data.next_state;
+          } else if (data.state || data.next_state) {
+            currentState = data.state || data.next_state;
           }
         }
       } catch (err) {
