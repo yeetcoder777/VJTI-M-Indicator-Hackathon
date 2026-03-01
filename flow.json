@@ -50,6 +50,16 @@
       "key": "category",
       "text": "Do you belong to SC / ST / Woman farmer / None?",
       "next": "end"
+    },
+    "scheme_selection": {
+      "key": "scheme_selection",
+      "text": "Which scheme are you interested in?",
+      "next": "followup_qa"
+    },
+    "followup_qa": {
+      "key": "followup_qa",
+      "text": "What more do you want to know?",
+      "next": "followup_qa"
     }
   }
 }

@@ -117,6 +117,28 @@
       cursor: not-allowed;
     }
 
+    .file-btn {
+      background: #f1f3f4;
+      color: #333;
+      padding: 10px 15px;
+      font-size: 1.2em;
+    }
+
+    .file-btn:hover {
+      background: #e4e6e9;
+    }
+
+    #file-upload {
+      display: none;
+    }
+
+    #file-name-display {
+      font-size: 0.85em;
+      color: #1a73e8;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
     .spinner {
       font-style: italic;
       color: #888;
@@ -156,15 +178,29 @@
       </select>
     </div>
     <div id="chat-window"></div>
+    <div id="file-name-display"></div>
     <div class="input-area">
+      <input type="file" id="file-upload" accept="image/*" onchange="displayFileName()" />
+      <button class="file-btn" onclick="document.getElementById('file-upload').click()"
+        title="Attach Document">📎</button>
       <input type="text" id="user-input" placeholder="Type your answer here..." onkeypress="handleKeyPress(event)" />
       <button id="send-btn" onclick="sendMessage()">Send</button>
     </div>
   </div>
 
   <script>
-    let currentState = "start";
-    const apiUrl = "http://127.0.0.1:8000/chatbot";
+    let currentUserId = "web_user_" + Math.random().toString(36).substr(2, 9);
+    const apiUrl = "http://127.0.0.1:8000/web_chat";
+
+    function displayFileName() {
+      const fileInput = document.getElementById('file-upload');
+      const display = document.getElementById('file-name-display');
+      if (fileInput.files.length > 0) {
+        display.innerText = "Attached: " + fileInput.files[0].name;
+      } else {
+        display.innerText = "";
+      }
+    }
 
     async function initChat() {
       setLoading(true);
@@ -173,9 +209,8 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            current_state: "start",
-            user_answer: "",
-            language: document.getElementById("language").value
+            user_id: currentUserId,
+            message: "reset"
           })
         });
         const data = await response.json();
@@ -183,8 +218,7 @@
         if (data.error) {
           appendMessage("bot", "Error: " + data.error);
         } else {
-          currentState = data.next_state;
-          appendMessage("bot", data.question);
+          appendMessage("bot", data.response);
           if (data.next_state === "end" && data.rag_response) {
             try {
               let cleanJson = data.rag_response.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -200,7 +234,19 @@
               } else {
                 schemesHtml += "<br><br><i>Based on your answers, we couldn't find specific schemes, or further verification is required.</i>";
               }
+
+              const lang = document.getElementById("language").value;
+              let nextPrompt = "<br><br><b>Which scheme are you interested in?</b>";
+              if (lang === "hindi") nextPrompt = "<br><br><b>आप किस योजना में रुचि रखते हैं?</b>";
+              if (lang === "marathi") nextPrompt = "<br><br><b>तुम्हाला कोणत्या योजनेत रस आहे?</b>";
+              if (lang === "tamil") nextPrompt = "<br><br><b>நீங்கள் எந்த திட்டத்தில் ஆர்வமாக உள்ளீர்கள்?</b>";
+              if (lang === "telugu") nextPrompt = "<br><br><b>మీరు ఏ పథకం పట్ల ఆసక్తి చూపుతున్నారు?</b>";
+
+              schemesHtml += nextPrompt;
+
               appendMessage("bot", schemesHtml);
+              // Force shift state to scheme_selection for subsequent turns
+              currentState = "scheme_selection";
             } catch (e) {
               console.error("Failed to parse RAG JSON from backend:", e);
             }
@@ -216,30 +262,64 @@
 
     async function sendMessage() {
       const inputField = document.getElementById("user-input");
-      const userText = inputField.value.trim();
-      if (!userText || currentState === "end") return;
+      const fileInput = document.getElementById("file-upload");
 
-      appendMessage("user", userText);
+      const userText = inputField.value.trim();
+      const hasFile = fileInput.files.length > 0;
+
+      if (!userText && !hasFile) return;
+
+      if (hasFile) {
+        appendMessage("user", `[Attached Image: ${fileInput.files[0].name}] ` + userText);
+      } else {
+        appendMessage("user", userText);
+      }
+
       inputField.value = "";
       setLoading(true);
 
+      let imageBase64 = null;
+      let imageMime = null;
+
+      if (hasFile) {
+        const file = fileInput.files[0];
+        imageMime = file.type;
+        const reader = new FileReader();
+
+        imageBase64 = await new Promise((resolve) => {
+          reader.onloadend = () => {
+            const result = reader.result;
+            resolve(result.split(',')[1]);
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      // Reset file input UI
+      fileInput.value = "";
+      document.getElementById('file-name-display').innerText = "";
+
       try {
+        const payload = {
+          user_id: currentUserId,
+          message: userText
+        };
+        if (imageBase64) {
+          payload.image_base64 = imageBase64;
+          payload.image_mime = imageMime;
+        }
+
         const response = await fetch(apiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            current_state: currentState,
-            user_answer: userText,
-            language: document.getElementById("language").value
-          })
+          body: JSON.stringify(payload)
         });
         const data = await response.json();
         removeSpinner();
         if (data.error) {
           appendMessage("bot", "Error: " + data.error);
         } else {
-          currentState = data.next_state;
-          appendMessage("bot", data.question);
+          appendMessage("bot", data.response);
           if (data.next_state === "end" && data.rag_response) {
             try {
               let cleanJson = data.rag_response.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -255,10 +335,23 @@
               } else {
                 schemesHtml += "<br><br><i>Based on your answers, we couldn't find specific schemes, or further verification is required.</i>";
               }
+
+              const lang = document.getElementById("language").value;
+              let nextPrompt = "<br><br><b>Which scheme are you interested in?</b>";
+              if (lang === "hindi") nextPrompt = "<br><br><b>आप किस योजना में रुचि रखते हैं?</b>";
+              if (lang === "marathi") nextPrompt = "<br><br><b>तुम्हाला कोणत्या योजनेत रस आहे?</b>";
+              if (lang === "tamil") nextPrompt = "<br><br><b>நீங்கள் எந்த திட்டத்தில் ஆர்வமாக உள்ளீர்கள்?</b>";
+              if (lang === "telugu") nextPrompt = "<br><br><b>మీరు ఏ పథకం పట్ల ఆసక్తి చూపుతున్నారు?</b>";
+
+              schemesHtml += nextPrompt;
+
               appendMessage("bot", schemesHtml);
+              // Server logic natively maps this on the Backend now
             } catch (e) {
               console.error("Failed to parse RAG JSON from backend:", e);
             }
+          } else if (data.next_state) {
+            currentState = data.next_state;
           }
         }
       } catch (err) {
@@ -296,7 +389,7 @@
 
     function resetChat() {
       document.getElementById("chat-window").innerHTML = '';
-      currentState = 'start';
+      currentUserId = "web_user_" + Math.random().toString(36).substr(2, 9);
       initChat();
     }
 

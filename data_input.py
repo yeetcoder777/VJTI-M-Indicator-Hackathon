@@ -130,6 +130,64 @@ def chatbot(request: ChatRequest):
             "rag_response": rag_json_str
         }
         
+    # Dynamic QA state hooks
+    if request.current_state == "scheme_selection":
+        # The user's answer is the scheme name they want to learn about
+        request.answers["selected_scheme"] = request.user_answer
+        from scripts.rag import rag_specific_qa
+        try:
+            summary = rag_specific_qa(request.user_answer, "Provide a 2 sentence high level summary of this scheme.", request.language)
+            summary_text = summary.get("response", "")
+        except Exception as e:
+            print("Scheme summary failed:", e)
+            summary_text = ""
+            
+        next_state_data = flow["questions"]["followup_qa"]
+        question_text = f"{summary_text}\n\n{next_state_data['text']}"
+        
+        # We manually translate below if necessary, but RAG should handle it
+        if request.language.lower() != "english":
+            try:
+                prompt = f"Translate the following question to {request.language}:\n\n{next_state_data['text']}"
+                response = llm_call(prompt)
+                question_text = f"{summary_text}\n\n{response.strip()}"
+            except Exception:
+                pass
+                
+        return {
+            "next_state": "followup_qa",
+            "question": question_text,
+            "answers": request.answers
+        }
+
+    if request.current_state == "followup_qa":
+        scheme_name = request.answers.get("selected_scheme", "the farming scheme")
+        from scripts.rag import rag_specific_qa
+        try:
+            qa_reply = rag_specific_qa(scheme_name, request.user_answer, request.language)
+            qa_text = qa_reply.get("response", "")
+        except Exception as e:
+            print("Followup QA failed:", e)
+            qa_text = ""
+            
+        next_state_data = flow["questions"]["followup_qa"]
+        question_text = f"{qa_text}\n\n{next_state_data['text']}"
+        
+        if request.language.lower() != "english":
+            try:
+                prompt = f"Translate the following question to {request.language}:\n\n{next_state_data['text']}"
+                response = llm_call(prompt)
+                question_text = f"{qa_text}\n\n{response.strip()}"
+            except Exception:
+                pass
+        
+        # Infinite loop hook
+        return {
+            "next_state": "followup_qa",
+            "question": question_text,
+            "answers": request.answers
+        }
+        
     next_state_data = flow["questions"].get(next_state_key)
     if not next_state_data:
         return {"error": f"State '{next_state_key}' not found in flow.json"}

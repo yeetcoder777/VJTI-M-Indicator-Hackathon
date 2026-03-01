@@ -82,3 +82,36 @@ OUTPUT FORMAT:
 """
 )
   return {"response": response}
+
+@router.post("/rag_specific_qa")
+def rag_specific_qa(scheme_name: str, user_question: str, language: str = "english"):
+  query_embedding = embedding_model.encode(f"{scheme_name} {user_question}").tolist()
+  result_chunks = collection.query(
+      query_embeddings=query_embedding,
+      n_results=8
+  )
+  
+  response = llm_call(f"""
+SYSTEM ROLE:
+You are an expert advisor for Indian government farmer schemes, specifically knowledgeable about the "{scheme_name}" scheme.
+
+INPUTS:
+1) User's specific question:
+{user_question}
+
+2) Retrieved document chunks (from official forms, annexures, or guidelines):
+{result_chunks}
+
+YOUR TASK:
+- Answer the user's specific question accurately and directly using information ONLY related to "{scheme_name}".
+- Use the retrieved chunks to formulate your answer.
+- If the answer is not explicitly detailed in the chunks, use your general knowledge to provide a concise, factual answer.
+- If the question is completely unrelated to the scheme or farming, pivot them back to asking about the scheme.
+
+OUTPUT REQUIREMENTS:
+- You MUST respond ENTIRELY in this language: {language.upper()}.
+- Output plain text. DO NOT output JSON. Do NOT use markdown formatting (no bolding, no italics, no bullet points). Keep it clean conversational text.
+- Be extremely concise, conversational, and factual.
+"""
+  )
+  return {"response": response.strip()}
