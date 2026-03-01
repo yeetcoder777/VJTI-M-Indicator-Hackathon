@@ -8,6 +8,7 @@ from whatsapp_webhook import router as whatsapp_router
 from ivr import router as ivr_router
 from stt import router as stt_router
 from auto_form_filling import router as auto_form_router
+from weather_schemes import router as weather_router
 
 app = FastAPI()
 
@@ -28,6 +29,7 @@ app.include_router(whatsapp_router)
 app.include_router(ivr_router)
 app.include_router(stt_router)
 app.include_router(auto_form_router)
+app.include_router(weather_router)
 
 @app.get("/")
 def read_root():

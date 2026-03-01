@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, ArrowLeft, Globe, X, Mic, Square } from 'lucide-react'
+import { Send, ArrowLeft, Globe, X, Mic, Square, MapPin } from 'lucide-react'
 
 type Language = 'en' | 'hi' | 'mr' | 'ta' | 'te' | 'pa' | 'haryanvi'
 
@@ -118,6 +118,7 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [imageBase64, setImageBase64] = useState<string | null>(null)
+  const [isFetchingLocation, setIsFetchingLocation] = useState(false)
 
   const [currentUserId] = useState(() => `next_user_${Math.random().toString(36).substr(2, 9)}`)
 
@@ -350,6 +351,92 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
     }
   }
 
+  const handleLocationWeather = async () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser.")
+      return
+    }
+
+    setIsFetchingLocation(true)
+
+    // Add a user message showing location is being shared
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      text: "📍 Sharing my location for weather-based recommendations...",
+      sender: 'user',
+      timestamp: new Date(),
+    }
+    setMessages(prev => [...prev, userMsg])
+    setIsLoading(true)
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords
+        try {
+          const langMap: Record<Language, string> = {
+            en: 'english', hi: 'hindi', mr: 'marathi',
+            ta: 'tamil', te: 'telugu', pa: 'punjabi', haryanvi: 'haryanvi'
+          }
+
+          const response = await fetch('http://127.0.0.1:8000/weather-schemes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              latitude,
+              longitude,
+              language: langMap[language] || 'english',
+            }),
+          })
+          const data = await response.json()
+
+          let botHtml = ''
+          if (data.error) {
+            botHtml = `<b>Weather Alert:</b> ${data.error}`
+          } else {
+            const w = data.weather_summary
+            botHtml = `<b>🌦️ Weather Report (Last 30 Days)</b><br>`
+            botHtml += `📍 Location: ${latitude.toFixed(2)}°N, ${longitude.toFixed(2)}°E<br>`
+            botHtml += `🌧️ Total Rainfall: ${w.total_rainfall_mm} mm (${w.rainy_days} rainy days)<br>`
+            botHtml += `🌡️ Avg Temp: ${w.avg_temp_min_c}°C - ${w.avg_temp_max_c}°C<br>`
+            botHtml += `💨 Max Wind: ${w.max_wind_kmh} km/h<br><br>`
+            botHtml += `<b>📋 Weather-Based Scheme Recommendations:</b><br>`
+            botHtml += data.recommendation.replace(/\n/g, '<br>')
+          }
+
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            text: <div dangerouslySetInnerHTML={createMarkup(botHtml)} />,
+            sender: 'bot',
+            timestamp: new Date(),
+          }])
+        } catch (error) {
+          console.error("Weather fetch failed:", error)
+          setMessages(prev => [...prev, {
+            id: Date.now().toString(),
+            text: "Could not fetch weather data. Please try again.",
+            sender: 'bot',
+            timestamp: new Date(),
+          }])
+        } finally {
+          setIsLoading(false)
+          setIsFetchingLocation(false)
+        }
+      },
+      (error) => {
+        console.error("Geolocation error:", error)
+        setIsLoading(false)
+        setIsFetchingLocation(false)
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          text: "Location access denied. Please allow location access and try again.",
+          sender: 'bot',
+          timestamp: new Date(),
+        }])
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -422,7 +509,7 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
                     : 'bg-secondary text-foreground rounded-bl-none'
                     }`}
                 >
-                  <p className="text-sm md:text-base leading-relaxed">{message.text}</p>
+                  <div className="text-sm md:text-base leading-relaxed">{message.text}</div>
                   <span className={`text-xs mt-1 block ${message.sender === 'user' ? 'text-white/70' : 'text-muted-foreground'}`}>
                     {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -490,6 +577,15 @@ export default function ChatInterface({ language, onBack, onChangeLanguage }: Ch
               title="Attach Document"
             >
               📎
+            </button>
+            <button
+              type="button"
+              className={`p-3 transition-colors rounded-full ${isFetchingLocation ? 'text-primary animate-pulse' : 'text-gray-500 hover:text-primary hover:bg-gray-100'}`}
+              onClick={handleLocationWeather}
+              title="Share Location for Weather Alerts"
+              disabled={isFetchingLocation || isLoading}
+            >
+              <MapPin size={20} />
             </button>
             <input
               type="text"

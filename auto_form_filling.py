@@ -152,6 +152,28 @@ def handle_form(request: FormRequest):
                 
         return {"next_state": next_state_key, "question": question_text, "scheme": scheme_data["name"]}
 
+    # --- Cancellation Escape Hatch ---
+    cancel_keywords = ["cancel", "stop", "go back", "exit", "quit", "radd", "chhod", "band", "maghe", "niruthu", "venam", "oddhu", "aapu"]
+    user_intent = request.user_answer.lower().strip()
+    
+    if any(k in user_intent for k in cancel_keywords) and len(user_intent) < 30:
+        cancel_text = "Your application process has been cancelled. Returning to the main menu."
+        
+        if request.language.lower() != "english":
+            try:
+                prompt = f"Translate the following confirmation text to {request.language}:\n\n{cancel_text}"
+                response = llm_call(prompt)
+                cancel_text = response.strip()
+            except Exception:
+                pass
+                
+        return {
+            "next_state": "end",
+            "question": cancel_text,
+            "collected_data": {},
+            "cancelled": True
+        }
+
     # Normal State Loop
     current_state_data = scheme_data["questions"].get(request.current_state)
     if not current_state_data:

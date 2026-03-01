@@ -9,7 +9,12 @@ interface LanguageSelectionProps {
   onSelectLanguage: (language: Language) => void
 }
 
-const languages: { code: Language; name: string; flag: string; nativeName: string }[] = [
+const languages: {
+  code: Language
+  name: string
+  flag: string
+  nativeName: string
+}[] = [
   { code: 'en', name: 'English', flag: '🌍', nativeName: 'English' },
   { code: 'hi', name: 'हिंदी', flag: '🌾', nativeName: 'हिंदी' },
   { code: 'mr', name: 'मराठी', flag: '🌿', nativeName: 'मराठी' },
@@ -56,7 +61,9 @@ const cardVariants = {
   },
 }
 
-export default function LanguageSelection({ onSelectLanguage }: LanguageSelectionProps) {
+export default function LanguageSelection({
+  onSelectLanguage,
+}: LanguageSelectionProps) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -67,9 +74,9 @@ export default function LanguageSelection({ onSelectLanguage }: LanguageSelectio
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-secondary to-background p-4 overflow-hidden">
-      {/* Decorative elements */}
-      <div className="absolute top-10 left-10 w-32 h-32 rounded-full bg-accent/10 blur-3xl"></div>
-      <div className="absolute bottom-10 right-10 w-40 h-40 rounded-full bg-primary/10 blur-3xl"></div>
+      {/* Decorative blobs */}
+      <div className="absolute top-10 left-10 w-32 h-32 rounded-full bg-accent/10 blur-3xl" />
+      <div className="absolute bottom-10 right-10 w-40 h-40 rounded-full bg-primary/10 blur-3xl" />
 
       <motion.div
         className="relative z-10 max-w-4xl mx-auto"
@@ -87,6 +94,7 @@ export default function LanguageSelection({ onSelectLanguage }: LanguageSelectio
           >
             🌾 Kisan Yojana Sahayak
           </motion.h1>
+
           <motion.p
             className="text-lg text-muted-foreground mb-2"
             initial={{ opacity: 0 }}
@@ -95,15 +103,16 @@ export default function LanguageSelection({ onSelectLanguage }: LanguageSelectio
           >
             Government Schemes for Farmers
           </motion.p>
+
           <motion.div
             className="h-1 w-24 bg-gradient-to-r from-primary to-accent rounded-full mx-auto"
             initial={{ width: 0 }}
             animate={{ width: 96 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-          ></motion.div>
+          />
         </div>
 
-        {/* Language selection text */}
+        {/* Instruction */}
         <motion.p
           className="text-center text-muted-foreground mb-8"
           initial={{ opacity: 0 }}
@@ -113,7 +122,7 @@ export default function LanguageSelection({ onSelectLanguage }: LanguageSelectio
           Select your language to get started
         </motion.p>
 
-        {/* Language cards grid */}
+        {/* Language Cards */}
         <motion.div
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
           variants={containerVariants}
@@ -127,29 +136,33 @@ export default function LanguageSelection({ onSelectLanguage }: LanguageSelectio
               whileHover="hover"
               whileTap="tap"
               onClick={() => onSelectLanguage(lang.code)}
-              className="relative group p-6 rounded-2xl bg-white border-2 border-border hover:border-accent cursor-pointer transition-all duration-300 shadow-sm hover:shadow-lg"
+              className="relative group p-6 rounded-2xl bg-white border-2 border-border hover:border-accent transition-all shadow-sm hover:shadow-lg overflow-hidden"
             >
-              {/* Gradient background on hover */}
-              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              {/* Hover gradient */}
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary/5 to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity" />
 
               <div className="relative z-10">
                 <div className="text-5xl mb-3">{lang.flag}</div>
-                <h3 className="text-xl font-bold text-primary mb-1">{lang.name}</h3>
-                <p className="text-sm text-muted-foreground">{lang.nativeName}</p>
+                <h3 className="text-xl font-bold text-primary mb-1">
+                  {lang.name}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {lang.nativeName}
+                </p>
               </div>
 
-              {/* Animated shine effect */}
+              {/* Shine sweep */}
               <motion.div
-                className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20"
+                className="absolute inset-0 rounded-2xl bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 pointer-events-none"
                 initial={{ x: '-100%' }}
                 whileHover={{ x: '100%' }}
                 transition={{ duration: 0.5 }}
-              ></motion.div>
+              />
             </motion.button>
           ))}
         </motion.div>
 
-        {/* Footer info */}
+        {/* Footer */}
         <motion.div
           className="mt-12 text-center text-sm text-muted-foreground"
           initial={{ opacity: 0 }}

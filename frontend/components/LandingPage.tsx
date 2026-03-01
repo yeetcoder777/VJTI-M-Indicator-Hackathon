@@ -178,8 +178,10 @@ export default function LandingPage({ language, onChatClick, onChangeLanguage }:
         animate={{ opacity: 1 }}
         transition={{ delay: 0.5 }}
       >
-        <div className="max-w-5xl mx-auto px-4 text-center text-sm text-muted-foreground">
+        <div className="max-w-5xl mx-auto px-4 flex items-center gap-4 text-center justify-center text-sm text-muted-foreground">
           <p>{content.footerText}</p>
+          <span>|</span>
+          <a href="/admin" className="hover:text-primary transition-colors font-medium cursor-pointer">Government Portal</a>
         </div>
       </motion.footer>
     </div>
