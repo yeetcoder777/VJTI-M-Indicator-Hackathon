@@ -504,7 +504,7 @@ def ivr_recommend_sync(call_sid: str):
                 "*Farmer Scheme Assistant*\n\n"
                 f"*Your Profile:*\n{profile_text}\n\n"
                 f"*Recommended Schemes:*\n{recommendation}\n\n"
-                "_Reply to this message to ask questions about any scheme._"
+                "_Reply with a scheme name to learn more about it._"
             )
             try:
                 twilio_client.messages.create(
@@ -513,6 +513,17 @@ def ivr_recommend_sync(call_sid: str):
                     body=wa_body,
                 )
                 print(f"[WhatsApp] Sent to {caller}")
+
+                # Pre-seed WhatsApp session so farmer can continue
+                # the conversation without re-answering questions
+                from whatsapp_webhook import sessions as wa_sessions
+                wa_key = f"whatsapp:{caller}"
+                wa_sessions[wa_key] = {
+                    "current_state": "scheme_selection",
+                    "answers": dict(profile),
+                    "language": session["language"],
+                }
+                print(f"[WhatsApp] Pre-seeded session for {wa_key}")
             except Exception as e:
                 print(f"[WhatsApp] Failed: {e}")
 
